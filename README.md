@@ -39,3 +39,4 @@ python src/connect_deepl.py \
 - Authentication uses the `Authorization: DeepL-Auth-Key <key>` header.
 - Missing usage counters print as `n/a`.
 - Successful runs do not raise `SystemExit`, which keeps notebook/interactive usage cleaner.
+- Unknown extra CLI flags (for example Jupyter `-f <kernel.json>`) are ignored safely.

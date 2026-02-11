@@ -81,6 +81,11 @@ class ConnectDeepLTests(unittest.TestCase):
     def test_format_usage_returns_na_when_usage_keys_missing(self):
         self.assertEqual(connect_deepl.format_usage("document_count", "document_limit", {}), "n/a")
 
+
+    def test_parse_args_ignores_unknown_args(self):
+        args = connect_deepl.parse_args(["--translate-text", "Hello", "-f", "kernel.json"])
+        self.assertEqual(args.translate_text, "Hello")
+
     def test_main_usage_mode(self):
         stdout_buffer = io.StringIO()
         with patch.dict(os.environ, {"DEEPL_API_KEY": "ok:fx"}, clear=False), patch(

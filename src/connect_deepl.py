@@ -124,7 +124,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Required safety switch before consuming translation characters.",
     )
-    return parser.parse_args(argv)
+    args, _unknown = parser.parse_known_args(argv)
+    return args
 
 
 def main(argv: list[str] | None = None) -> int:
