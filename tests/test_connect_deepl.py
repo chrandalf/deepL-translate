@@ -3,6 +3,7 @@ import json
 import os
 import unittest
 import urllib.error
+from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import patch
 
 import src.connect_deepl as connect_deepl
@@ -58,6 +59,31 @@ class ConnectDeepLTests(unittest.TestCase):
         with patch("urllib.request.urlopen", side_effect=error):
             with self.assertRaises(RuntimeError):
                 connect_deepl.fetch_usage("bad")
+
+    def test_format_usage_returns_na_when_usage_keys_missing(self):
+        self.assertEqual(connect_deepl.format_usage("document_count", "document_limit", {}), "n/a")
+
+    def test_main_prints_na_for_missing_document_usage(self):
+        stdout_buffer = io.StringIO()
+        with patch.dict(os.environ, {"DEEPL_API_KEY": "ok:fx"}, clear=False), patch(
+            "src.connect_deepl.fetch_usage",
+            return_value={"character_count": 0, "character_limit": 500000},
+        ), redirect_stdout(stdout_buffer):
+            exit_code = connect_deepl.main()
+
+        self.assertEqual(exit_code, 0)
+        output = stdout_buffer.getvalue()
+        self.assertIn("DeepL connection successful.", output)
+        self.assertIn("Character usage: 0/500000", output)
+        self.assertIn("Document usage: n/a", output)
+
+    def test_main_returns_1_on_failure_without_raising_system_exit(self):
+        stderr_buffer = io.StringIO()
+        with patch.dict(os.environ, {}, clear=True), redirect_stderr(stderr_buffer):
+            exit_code = connect_deepl.main()
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("DeepL connection failed", stderr_buffer.getvalue())
 
 
 if __name__ == "__main__":

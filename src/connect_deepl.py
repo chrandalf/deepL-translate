@@ -50,6 +50,14 @@ def fetch_usage(api_key: str) -> dict:
     return json.loads(payload)
 
 
+def format_usage(count_key: str, limit_key: str, usage: dict) -> str:
+    count = usage.get(count_key)
+    limit = usage.get(limit_key)
+    if count is None or limit is None:
+        return "n/a"
+    return f"{count}/{limit}"
+
+
 def main() -> int:
     try:
         api_key = get_api_key()
@@ -58,16 +66,13 @@ def main() -> int:
         print(f"DeepL connection failed: {exc}", file=sys.stderr)
         return 1
 
-    character_count = usage.get("character_count", "?")
-    character_limit = usage.get("character_limit", "?")
-    document_count = usage.get("document_count", "?")
-    document_limit = usage.get("document_limit", "?")
-
     print("DeepL connection successful.")
-    print(f"Character usage: {character_count}/{character_limit}")
-    print(f"Document usage: {document_count}/{document_limit}")
+    print(f"Character usage: {format_usage('character_count', 'character_limit', usage)}")
+    print(f"Document usage: {format_usage('document_count', 'document_limit', usage)}")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    exit_code = main()
+    if exit_code:
+        raise SystemExit(exit_code)

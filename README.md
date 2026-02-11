@@ -23,10 +23,11 @@ python src/connect_deepl.py
 Expected output:
 
 - `DeepL connection successful.`
-- Current character/document usage counters.
+- Current character/document usage counters (`Document usage: n/a` when DeepL does not return document counters).
 
 ## Notes
 
 - Keep your API key in an environment variable; do not hardcode it in files.
 - Free-tier keys (`:fx`) must use `https://api-free.deepl.com` (already wired in this script).
 - Authentication uses the `Authorization: DeepL-Auth-Key <key>` header, which is required by DeepL's updated auth rules.
+- Successful runs do not raise `SystemExit`, which keeps notebook/interactive usage cleaner.
