@@ -38,10 +38,15 @@ class ConnectDeepLTests(unittest.TestCase):
         self.assertEqual(request.full_url, connect_deepl.USAGE_URL)
         self.assertEqual(request.get_method(), "POST")
         self.assertEqual(request.data, b"")
-        self.assertEqual(
-            request.get_header("Authorization"),
-            "DeepL-Auth-Key abc:fx",
-        )
+        self.assertEqual(request.get_header("Authorization"), "DeepL-Auth-Key abc:fx")
+
+    def test_build_translate_request_uses_header_and_body(self):
+        request = connect_deepl.build_translate_request("abc:fx", "Hi", target_lang="DE")
+        self.assertEqual(request.full_url, connect_deepl.TRANSLATE_URL)
+        self.assertEqual(request.get_method(), "POST")
+        self.assertEqual(request.get_header("Authorization"), "DeepL-Auth-Key abc:fx")
+        self.assertIn(b"text=Hi", request.data)
+        self.assertIn(b"target_lang=DE", request.data)
 
     def test_fetch_usage_success(self):
         with patch("urllib.request.urlopen", return_value=FakeResponse({"character_count": 1})):
@@ -60,16 +65,29 @@ class ConnectDeepLTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 connect_deepl.fetch_usage("bad")
 
+    def test_translate_text_success(self):
+        with patch(
+            "urllib.request.urlopen",
+            return_value=FakeResponse({"translations": [{"text": "Hallo"}]}),
+        ):
+            translated = connect_deepl.translate_text("abc:fx", "Hello")
+        self.assertEqual(translated, "Hallo")
+
+    def test_translate_text_missing_translations(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse({"translations": []})):
+            with self.assertRaises(RuntimeError):
+                connect_deepl.translate_text("abc:fx", "Hello")
+
     def test_format_usage_returns_na_when_usage_keys_missing(self):
         self.assertEqual(connect_deepl.format_usage("document_count", "document_limit", {}), "n/a")
 
-    def test_main_prints_na_for_missing_document_usage(self):
+    def test_main_usage_mode(self):
         stdout_buffer = io.StringIO()
         with patch.dict(os.environ, {"DEEPL_API_KEY": "ok:fx"}, clear=False), patch(
             "src.connect_deepl.fetch_usage",
             return_value={"character_count": 0, "character_limit": 500000},
         ), redirect_stdout(stdout_buffer):
-            exit_code = connect_deepl.main()
+            exit_code = connect_deepl.main([])
 
         self.assertEqual(exit_code, 0)
         output = stdout_buffer.getvalue()
@@ -77,13 +95,49 @@ class ConnectDeepLTests(unittest.TestCase):
         self.assertIn("Character usage: 0/500000", output)
         self.assertIn("Document usage: n/a", output)
 
-    def test_main_returns_1_on_failure_without_raising_system_exit(self):
+    def test_main_translate_requires_allow_flag(self):
         stderr_buffer = io.StringIO()
-        with patch.dict(os.environ, {}, clear=True), redirect_stderr(stderr_buffer):
-            exit_code = connect_deepl.main()
-
+        with patch.dict(os.environ, {"DEEPL_API_KEY": "ok:fx"}, clear=False), redirect_stderr(stderr_buffer):
+            exit_code = connect_deepl.main(["--translate-text", "Hello"])  # no allow flag
         self.assertEqual(exit_code, 1)
-        self.assertIn("DeepL connection failed", stderr_buffer.getvalue())
+        self.assertIn("Translation blocked", stderr_buffer.getvalue())
+
+    def test_main_translate_respects_char_limit(self):
+        stderr_buffer = io.StringIO()
+        with patch.dict(os.environ, {"DEEPL_API_KEY": "ok:fx"}, clear=False), redirect_stderr(stderr_buffer):
+            exit_code = connect_deepl.main(
+                [
+                    "--translate-text",
+                    "abcdef",
+                    "--allow-translate",
+                    "--max-chars",
+                    "5",
+                ]
+            )
+        self.assertEqual(exit_code, 1)
+        self.assertIn("exceeds --max-chars=5", stderr_buffer.getvalue())
+
+    def test_main_translate_success(self):
+        stdout_buffer = io.StringIO()
+        with patch.dict(os.environ, {"DEEPL_API_KEY": "ok:fx"}, clear=False), patch(
+            "src.connect_deepl.translate_text",
+            return_value="Hallo Welt",
+        ), redirect_stdout(stdout_buffer):
+            exit_code = connect_deepl.main(
+                [
+                    "--translate-text",
+                    "Hello world",
+                    "--allow-translate",
+                    "--max-chars",
+                    "50",
+                ]
+            )
+
+        self.assertEqual(exit_code, 0)
+        output = stdout_buffer.getvalue()
+        self.assertIn("DeepL translation successful.", output)
+        self.assertIn("Source chars sent: 11", output)
+        self.assertIn("Target (DE): Hallo Welt", output)
 
 
 if __name__ == "__main__":
